@@ -7,13 +7,16 @@ $options = array(
 $pdo = new PDO("mysql:host=rmd1:3306;dbname=gitbase", "root", "teliae96", $options);
 
 
+echo "test";
+
+
+
 $sReq = "select commit.sHash, commitdetail.sScript, artefactconsolide.sType, commit.sCommitter from committuleap
 join commit using(idcommit)
 join commitdetail using(sHash)
 join artefactconsolide on(artefactconsolide.id = committuleap.idArtefact)
 where artefactconsolide.sType='Bug'";
 
-//$stm = $pdo->query($sReq);
 
 //$tabCorrespondance = array();
 /*while($ligne = $stm->fetch()) {
