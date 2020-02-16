@@ -7,7 +7,8 @@ $options = array(
 $pdo = new PDO("mysql:host=rmd1:3306;dbname=gitbase", "root", "teliae96", $options);
 
 
-echo "test";
+echo "test2";
+echo "test3";
 
 
 
