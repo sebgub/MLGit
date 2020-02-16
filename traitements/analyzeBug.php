@@ -56,6 +56,8 @@ $bActif = true;
 
     var_dump($oAnalyse);
 
+    echo 1;
+
 
   }
 
