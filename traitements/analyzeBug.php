@@ -1,84 +1,164 @@
 <?php
 
-
-$options = array(
-    PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8'
-);
-$pdo = new PDO("mysql:host=rmd1:3306;dbname=gitbase", "root", "teliae96", $options);
+//test : http://10.0.21.43/MLGit/traitements/analyzeBug.php?idCommit=225
+// http://10.0.21.43/MLGit/traitements/analyzeBug.php?idCommitDetail=47202   ====> bug: f246b470fa1a4543bd858fb1ad96e98c7fdd7b24     evol: c72922b9c3f07a161ab03e035ef964a0082b5f2c
+// http://10.0.21.43/MLGit/traitements/analyzeBug.php?idCommitDetail=46435
 
 
-$sReq = "select commit.sHash, commitdetail.sScript, artefactconsolide.sType, commit.sCommitter from committuleap
-join commit using(idcommit)
-join commitdetail using(sHash)
-join artefactconsolide on(artefactconsolide.id = committuleap.idArtefact)
-where artefactconsolide.sType='Bug'";
+$idCommit = false;
+if(isset($_GET['idCommit'])) {
+  $idCommit = $_GET['idCommit'];
+}
 
+$idCommitDetail = false;
+if(isset($_GET['idCommitDetail'])) {
+  $idCommitDetail = $_GET['idCommitDetail'];
+}
 
-//$tabCorrespondance = array();
-/*while($ligne = $stm->fetch()) {
-  $tabCorrespondance[$ligne[1]] = $ligne [0];
-}*/
 
 chdir("../../teliway.com/appli/Teliway_Trunk");
 
-$sScript = "autres/gestionGED.php";
+
+CAnalyzeGit::execute($idCommit, $idCommitDetail);
+
+
+/*$sScript = "autres/gestionGED.php";
 $sHash = "e11a24c85a5748d5c20899e94b6efa5b51192478";
 $sDate = "2020-01-22 17:37:14";
+*/
+
+class CAnalyzeGit {
+
+  static $sMode = "console";
 
 
-$tabAnalyse = blame($sScript, $sHash);
+  public static function execute($p_idCommit = false, $p_idCommitDetail = false) {
 
+    file_put_contents("analyse.log", "");
 
-var_dump($tabAnalyse);
+    $options = array(
+        PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8'
+    );
+    $pdo = new PDO("mysql:host=rmd1:3306;dbname=gitbase", "root", "teliae96", $options);
 
+    $sReq = "select commitdetail.idCommitDetail, commit.idCommit, commit.sHash, commitdetail.sScript, commit.dDate from committuleap
+join commit using(idcommit)
+join commitdetail using(sHash)
+join artefactconsolide on(artefactconsolide.id = committuleap.idArtefact)
+where artefactconsolide.sType='Bug' and sScript NOT IN ('sql/tabProps.php', 'sql/tabSQL.php')";
 
-$sReq = "select commit.sHash from commitdetail
-join commit on(commit.sHash = commitdetail.sHash)
-join committuleap on (committuleap.idCommit = commit.idCommit)
-join artefactconsolide on (committuleap.idArtefact = artefactconsolide.id)
-where artefactconsolide.sType = 'Demande' and sScript = ". $pdo->quote($sScript)." AND dDate <= ".$pdo->quote($sDate);
+    if($p_idCommit !== false) {
+      $sReq .= " AND commit.idCommit = ".(int) $p_idCommit;
+    }
 
-$stm = $pdo->query($sReq);
+    if($p_idCommitDetail !== false) {
+      $sReq .= " AND commitdetail.idCommitDetail = ".(int) $p_idCommitDetail;
+    }
 
-$tabDemandes = array();
-while($ligne = $stm->fetch()) {
-  //$tabDemandes[$ligne[0]] = blame($sScript, $ligne[0]);
-  $tabDemandes[] = $ligne[0];
-}
+    //$sReq .= " LIMIT 300";
 
-var_dump($tabDemandes);
+    self::trace($sReq);
+    $stm = $pdo->query($sReq);
 
+    //$tabCorrespondance = array();
 
-$bActif = true;
-//while($bActif) {
-
-  foreach($tabAnalyse as $oBlame) {
-
-   echo $oBlame->sPrevious.'<br/>';
-
-
-   $tabCible = blame($sScript, $oBlame->sPrevious, true);
-
-
-
-
+    while($ligne = $stm->fetch()) {
+      CAnalyzeGit::analyzeBug($ligne[0], $ligne[1], $ligne[2], $ligne[3], $ligne[4]);
+    }
 
 
   }
 
-  var_dump($tabCible);
-
-//}
 
 
+  public static function trace($p_sMessage) {
 
-function blame($p_sScript, $p_sHash, $p_bAllLines = false) {
+    switch(self::$sMode) {
 
-  exec("git blame -s -w --line-porcelain ". $p_sHash ." ". $p_sScript ." > analyse.txt");
+      case "web": echo $p_sMessage."<br/>"; break;
+      case "console": echo $p_sMessage."\r\n"; break;
+    }
+
+    file_put_contents("analyse.log", date('Y-m-d h:i:s')." : ".$p_sMessage."\r\n", FILE_APPEND);
+
+  }
+
+  public static function analyzeBug($p_idCommitDetail, $p_idCommit, $p_sHash, $p_sScript, $p_dDate) {
+
+   self::trace('-------------------------------------------------------');
+   self::trace( "#".$p_idCommitDetail." / ".$p_sHash." / ".$p_sScript." / ".$p_dDate);
+
+   $tabAnalyse = self::blame($p_sScript, $p_sHash);
+
+   //var_dump($tabAnalyse);
+
+   $options = array(
+       PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8'
+   );
+
+   $pdo = new PDO("mysql:host=rmd1:3306;dbname=gitbase", "root", "teliae96", $options);
+   $sReq = "select commit.sHash from commitdetail
+            join commit on(commit.sHash = commitdetail.sHash)
+            join committuleap on (committuleap.idCommit = commit.idCommit)
+            join artefactconsolide on (committuleap.idArtefact = artefactconsolide.id)
+            where artefactconsolide.sType = 'Demande' and sScript = ". $pdo->quote($p_sScript)." AND dDate <= ".$pdo->quote($p_dDate);
+
+   $stm = $pdo->query($sReq);
+
+   $tabDemandes = array();
+   while($ligne = $stm->fetch()) {
+     //$tabDemandes[$ligne[0]] = blame($sScript, $ligne[0]);
+     $tabDemandes[$ligne[0]] = false;
+   }
+
+   //var_dump($tabDemandes);
+
+   $tabBugs = array();
+   foreach($tabAnalyse as $oBlame) {
+
+    //    echo $oBlame->sPrevious.'<br/>';
+
+        $tabImpacts = self::blame($p_sScript, $oBlame->sPrevious, $oBlame->iCurrentLine, true);
+
+        //var_dump($tabImpacts);
+
+        if(!is_array($tabImpacts) || empty($tabImpacts)) continue;
+
+        if(isset($tabDemandes[$tabImpacts[0]->sHash])) {
+          $tabDemandes[$tabImpacts[0]->sHash] = true;
+          self::trace('   > Impact: '.$tabImpacts[0]->sHash." / Ligne: ".$oBlame->iCurrentLine);
+
+          $tabBugs[] = $tabImpacts[0]->sHash;
+        }
+
+   }
+
+   //self::trace('-------------------------------------------------------');
+   // var_dump($tabDemandes);
+
+   $stm = $pdo->query("UPDATE commitdetail set bProcessed = 1 WHERE sHash = ".$pdo->quote($p_sHash)." AND sScript = ".$pdo->quote($p_sScript));
+
+   foreach($tabBugs as $sHash) {
+
+     $stm = $pdo->query("UPDATE commitdetail set bBug = 1, bProcessed = 1 WHERE sHash = ".$pdo->quote($sHash)." AND sScript = ".$pdo->quote($p_sScript));
+
+   }
 
 
-  echo "git blame -s -w --line-porcelain ". $p_sHash ." ". $p_sScript."<br/>";
-  $sRet = file_get_contents("analyse.txt");
+ }
+
+
+ public static function blame($p_sScript, $p_sHash, $p_iLigne = false, $p_bAllLines = false) {
+
+  $sCommand = "git blame -s -w --line-porcelain ". $p_sHash ." ". $p_sScript;
+
+  if($p_iLigne !== false) {
+    $sCommand .= " -L ".$p_iLigne.",".$p_iLigne;
+  }
+  $sRet = shell_exec($sCommand);
+
+  //self::trace($sCommand);
+  //$sRet = file_get_contents("analyse.txt");
 
   $tabLignes = explode("\n", $sRet);
 
@@ -134,6 +214,7 @@ function blame($p_sScript, $p_sHash, $p_bAllLines = false) {
 
 }
 
+}
 
 class CBlameObjet {
 
