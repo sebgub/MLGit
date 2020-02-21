@@ -1,5 +1,5 @@
 <?php
-$dsn = "mysql:host=localhost:3307;dbname=gitbase";
+$dsn = "mysql:host=localhost:3308;dbname=gitbase";
 $user = "root";
 $passwd = "";
 
@@ -7,51 +7,57 @@ $pdo = new PDO($dsn, $user, $passwd);
 
 $sFileName = "commit_full";
 $start_time = 1514768913;
-$end_time = 1581642513;
+$end_time = time();
 $ONE_DAY = 90000;   // can't use 86400 because some days have one hour more or less
   for ( $each_timestamp = $start_time ; $each_timestamp <= $end_time ; $each_timestamp +=  $ONE_DAY) {
 
     /*  force midnight to compensate for daylight saving time  */
     $tabDate = getdate( $each_timestamp );
-	
-	$sDate = $tabDate['year']."-".str_pad($tabDate['mon'],2,"0",STR_PAD_LEFT )."-".str_pad($tabDate['mday'],2,"0",STR_PAD_LEFT ); 
-    
+
+	$sDate = $tabDate['year']."-".str_pad($tabDate['mon'],2,"0",STR_PAD_LEFT )."-".str_pad($tabDate['mday'],2,"0",STR_PAD_LEFT );
+
 	echo $sDate."\r\n";
-	
+
 	$each_timestamp = mktime ( 0 , 0 , 0 , $tabDate['mon'] , $tabDate['mday'] , $tabDate['year'] );
+
+/*	$sReq = "SELECT
+        committer_when,commit_hash,EXPLODE(COMMIT_FILE_STATS(repository_id, commit_hash)) as stats from commits
+where committer_when like '".$sDate."%'";
+*/
 
 	$sReq = "SELECT
 committer_when,
 commit_hash,
     JSON_UNQUOTE(JSON_EXTRACT(stats, '$.Path')) AS file_path,
     JSON_UNQUOTE(JSON_EXTRACT(stats, '$.Language')) AS file_language,
-    JSON_EXTRACT(stats, '$.Code.Additions') AS code_lines_added,
-    JSON_EXTRACT(stats, '$.Code.Deletions') AS code_lines_removed
+    JSON_EXTRACT(stats, '$.Other.Additions') AS code_lines_added,
+    JSON_EXTRACT(stats, '$.Other.Deletions') AS code_lines_removed
 FROM (
     SELECT
-        committer_when,commit_hash,EXPLODE(COMMIT_FILE_STATS(repository_id, commit_hash)) as stats from commits 
-		where committer_when like '".$sDate."%' 
+        committer_when,commit_hash,EXPLODE(COMMIT_FILE_STATS(repository_id, commit_hash)) as stats from commits
+		where committer_when like '".$sDate."%'
 		) t
 where 1";
 
 		$stm = $pdo->query($sReq);
-		
-		
+
+
 		$iCpt = 0;
 		while($ligne = $stm->fetch()) {
-	
-			$str = $ligne[0].";".$ligne[1].";".$ligne[2]."\r\n";
-	
+
+
+		  $str = $ligne[0].";".$ligne[1].";".$ligne[2].";".$ligne[4].";".$ligne[5]."\r\n";
+
 	        $iCpt++;
-			file_put_contents($sFileName, $str, FILE_APPEND);
+		   	file_put_contents($sFileName, $str, FILE_APPEND);
 	    }
-		
+
 		echo "  > ".$iCpt." commits.\r\n";
-	
+
 }
 
-	
-  
+
+
 
 die();
 
@@ -60,15 +66,15 @@ $stm = $pdo->query($sReq);
 $sFileName = "commit_".time();
 file_put_contents($sFileName, "");
 while($ligne = $stm->fetch()) {
-	
+
 	$str = $ligne[0].";".$ligne[1].";".$ligne[2]."\r\n";
-	
+
 	file_put_contents($sFileName, $str, FILE_APPEND);
-	
+
 }
 
 
- 
+
 die();
 $test = "OD311601";
 if(preg_match("/OD311601/", $test)) {
@@ -122,7 +128,7 @@ $sJson = '';
 echo callREST("https://api.insee.fr/entreprises/sirene/V3/siret?q=codeCommuneEtablissement:69001", $sJson, 'GET');
 
 //$tab = array(
-/*array("sAction" => "POINTAGE", 
+/*array("sAction" => "POINTAGE",
     "sSousAction" => "EVENEMENT",
     "iNumero" => 357661083821719, // 357917080384658,
     "iTimeStamp" => '1552669295',
@@ -136,7 +142,7 @@ echo callREST("https://api.insee.fr/entreprises/sirene/V3/siret?q=codeCommuneEta
     "sNomAppareil" => "TC25",
     "tabComplement" => '[{"DateHeure":"20190318180135","Matricule":"","Immatriculation":"","numRecep":"*33000212224000SEB00011712000300","Statut":"PCHCFM","Latitude":43.42656389,"Longitude":5.23918434,"DateHeureGPS":"20190315180135","Transmis":"N","Altitude":112.33673095703125,"iTypeScan":1,"sDateRdv":"","sKey":"133084105266737001_20190315180135","iNbPhoto":"0","tabSPhoto":"[]"}]'
     ));*/
-    
+
 //echo json_encode($tab);
 
 //echo callCurl("http://eurocoop.teliway.com/appli/veurocoop/ws/entrant/Telimobile/v01/pointage.php", $tab, 'POST');
@@ -149,35 +155,35 @@ die();
 
 
 function callCurl($p_sUrl, $p_sJson = false, $p_sMethod = 'POST') {
-  
+
   $headers = array();
-  
-  
+
+
   $oCurlRequest = curl_init();
-  
+
   curl_setopt($oCurlRequest, CURLOPT_URL, $p_sUrl);
   curl_setopt($oCurlRequest, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($oCurlRequest, CURLOPT_CONNECTTIMEOUT, 60);
   curl_setopt($oCurlRequest, CURLOPT_TIMEOUT, 60);
   curl_setopt($oCurlRequest, CURLOPT_HTTPHEADER, $headers);
   curl_setopt($oCurlRequest, CURLOPT_SSL_VERIFYPEER, false);
-  
+
   $oHeaders = array();
-  
-  
+
+
   if($p_sJson != false) {
     curl_setopt($oCurlRequest, CURLOPT_POSTFIELDS, $p_sJson);
     curl_setopt($oCurlRequest, CURLOPT_HTTPGET, false);
-    
+
     if($p_sMethod == 'PUT') {
       curl_setopt($oCurlRequest, CURLOPT_CUSTOMREQUEST, 'PUT');
-      
+
     } else {
       curl_setopt($oCurlRequest, CURLOPT_POST, true);
     }
-    
+
   } else {
-    
+
     if($p_sMethod == 'DELETE') {
       curl_setopt($oCurlRequest, CURLOPT_POST, false);
       curl_setopt($oCurlRequest, CURLOPT_HTTPGET, false);
@@ -188,19 +194,19 @@ function callCurl($p_sUrl, $p_sJson = false, $p_sMethod = 'POST') {
       curl_setopt($oCurlRequest, CURLOPT_HTTPGET, true);
     }
   }
-  
+
   $sRet = curl_exec($oCurlRequest);
   if(!$sRet) {
-   
-    
+
+
     echo $sRet;
 
   }
-  
+
   curl_close($oCurlRequest);
-  
+
   return $sRet;
-  
+
 }
 
 
@@ -212,13 +218,13 @@ function callCurl($p_sUrl, $p_sJson = false, $p_sMethod = 'POST') {
 
 
 function callREST( $p_sUrl, $p_sParameters = '', $p_sMethod = 'POST') {
-  
- 
-  
+
+
+
 
   if($p_sParameters != '') {
     switch ($p_sMethod) {
-      
+
       case 'POST' :
         $opts = array('http' =>
         array(
@@ -252,13 +258,13 @@ function callREST( $p_sUrl, $p_sParameters = '', $p_sMethod = 'POST') {
         )
     );
   }
-  
+
   $Gcontext  = stream_context_create($opts);
-  
+
   $result = file_get_contents($p_sUrl, false, $Gcontext);
-  
+
   return $result;
-  
+
 }
 
 
@@ -335,21 +341,21 @@ $t = array('sImei' => '1145456458',
 					'fVitesse' => 20.7,
 					'iStatellite' => 3,
 					'fCap' => 111.3,
-					'sDateHeure' => '2018-10-26T15:42:00+02:00'					
+					'sDateHeure' => '2018-10-26T15:42:00+02:00'
 			        ),
-					
+
 				array('fLatitude' => 2.470,
 				'fLongitude' => 1.476,
 				'fPrecision' => 11.0,
 				'fVitesse' => 30.1,
 				'iStatellite' => 3,
 				'fCap' => 110.1,
-				'sDateHeure' => '2018-10-26T15:43:00+02:00'					
+				'sDateHeure' => '2018-10-26T15:43:00+02:00'
 				)
 		     )
-		   
+
 		   );
-		   
+
 		   echo json_encode($t);
 
 */

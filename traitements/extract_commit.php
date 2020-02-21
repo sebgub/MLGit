@@ -1,5 +1,7 @@
 <?php
-$dsn = "mysql:host=localhost:3307;dbname=gitbase";
+
+// ./gitbase server -v  -p 3308 -d /home/web/teliway.com/appli/Teliway_Trunk/
+$dsn = "mysql:host=localhost:3308;dbname=gitbase";
 $user = "root";
 $passwd = "";
 
@@ -13,8 +15,8 @@ $pdoLocal = new PDO("mysql:host=rmd1:3306;dbname=gitbase", "root", "teliae96", $
 $sReq = "SELECT commit_hash, committer_when, committer_name, commit_message  FROM commits";
 
 $stm = $pdo->query($sReq);
-		
-	
+
+
 while($ligne = $stm->fetch()) {
 
 	$str = "INSERT INTO commit (sHash, dDate, sCommitter, sTexte) ";
@@ -25,9 +27,9 @@ while($ligne = $stm->fetch()) {
 
 	echo $str."\r\n";
 	$pdoLocal->exec($str);
-	
-}
-	
 
-	
+}
+
+
+
 ?>;
